@@ -1,0 +1,2 @@
+model,dataset,mse,r2,mae,n_samples,n_features,timestamp,experiment_name
+Linear Regression,sample_regression,131.66723601084303,0.9870826718638489,9.167579629215629,30,2,2025-06-24T21:32:49.597966,week1_test_results
