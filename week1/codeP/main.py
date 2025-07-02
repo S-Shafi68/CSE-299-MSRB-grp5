@@ -9,6 +9,12 @@ import logging
 import sys
 import os
 from pathlib import Path
+from models.ridge import Ridge
+from models.lasso import Lasso 
+from logger import get_logger
+
+logger = get_logger("main")
+
 
 # Add the current directory to Python path for imports
 sys.path.append(str(Path(__file__).parent))
@@ -60,6 +66,12 @@ Examples:
                        help='Output directory for results (default: RESULTS)')
     parser.add_argument('--verbose', action='store_true',
                        help='Enable verbose logging')
+    # Add this with your other arguments
+    parser.add_argument('--scaler', type=str, choices=['none', 'standard', 'minmax'], 
+                   default='none', help='Data preprocessing scaler')
+    parser.add_argument('--scaler_range', type=str, default='0,1', 
+                   help='Range for MinMaxScaler (e.g., "0,1" or "-1,1")')
+
     
     return parser.parse_args()
 
@@ -68,6 +80,8 @@ def get_model(model_name, **kwargs):
     """Factory function to get model instance."""
     models = {
         'linear_regression': LinearRegression,
+         'ridge': Ridge,
+         'lasso': Lasso,
         # Future models will be added here
     }
     
@@ -75,6 +89,33 @@ def get_model(model_name, **kwargs):
         raise ValueError(f"Unknown model: {model_name}. Available models: {list(models.keys())}")
     
     return models[model_name](**kwargs)
+
+
+def apply_preprocessing(X_train, X_test, scaler_type, scaler_range="0,1"):
+    """Apply preprocessing to training and test data."""
+    if scaler_type == 'none':
+        return X_train, X_test
+    
+    from preprocessing.scalers import StandardScaler, MinMaxScaler
+    
+    if scaler_type == 'standard':
+        scaler = StandardScaler()
+        logger.info("Applying StandardScaler preprocessing...")
+    elif scaler_type == 'minmax':
+        # Parse range
+        range_min, range_max = map(float, scaler_range.split(','))
+        scaler = MinMaxScaler(feature_range=(range_min, range_max))
+        logger.info(f"Applying MinMaxScaler preprocessing with range ({range_min}, {range_max})...")
+    
+    # Fit on training data and transform both
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    
+    logger.info(f"Preprocessing completed. Original shape: {X_train.shape}")
+    
+    return X_train_scaled, X_test_scaled
+
+
 
 
 def main():
@@ -98,7 +139,10 @@ def main():
             test_size=args.test_size,
             random_state=args.random_state,
             normalize=args.normalize.lower() == 'true'
+            
         )
+        # Apply preprocessing - ADD THIS LINE
+        X_train, X_test = apply_preprocessing(X_train, X_test, args.scaler, args.scaler_range)
         
         logger.info(f"Training set shape: {X_train.shape}, Test set shape: {X_test.shape}")
         
@@ -125,7 +169,7 @@ def main():
         train_mse = mean_squared_error(y_train, y_pred_train)
         test_mse = mean_squared_error(y_test, y_pred_test)
         train_r2 = r2_score(y_train, y_pred_train)
-        test_r2 = r2_score(y_test, y_pred_test)
+        test_r2 = r2_score  (y_test, y_pred_test)
         
         # Display results
         print("\n" + "="*50)
