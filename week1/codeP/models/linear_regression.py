@@ -4,7 +4,8 @@ Implements ordinary least squares linear regression from scratch.
 """
 
 import numpy as np
-from .base_model import BaseRegressor
+from .base import BaseRegressor  # Changed from models.base
+
 
 
 class LinearRegression(BaseRegressor):

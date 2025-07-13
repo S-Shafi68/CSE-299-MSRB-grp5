@@ -6,7 +6,7 @@ and preventing overfitting.
 """
 
 import numpy as np
-from .base_model import BaseRegressor
+from .base import BaseRegressor
 from logger import get_logger
 
 

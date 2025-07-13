@@ -1,0 +1,52 @@
+{
+  "task_type": "classification",
+  "train_accuracy": 0.9583333333333334,
+  "test_accuracy": 0.9,
+  "test_precision": 0.9144444444444445,
+  "test_recall": 0.9,
+  "test_f1": 0.9071647274954072,
+  "confusion_matrix": [
+    [
+      10,
+      0,
+      0
+    ],
+    [
+      0,
+      9,
+      0
+    ],
+    [
+      2,
+      1,
+      8
+    ]
+  ],
+  "model": "svm",
+  "dataset": "iris",
+  "parameters": {
+    "dataset": "iris",
+    "model": "svm",
+    "test_size": 0.2,
+    "random_state": 42,
+    "normalize": "false",
+    "cv": null,
+    "alpha": 1.0,
+    "output_dir": "RESULTS",
+    "verbose": false,
+    "scaler": "standard",
+    "scaler_range": "0,1",
+    "task": null,
+    "k": 5,
+    "distance_metric": "euclidean",
+    "weights": "uniform",
+    "C": 1.0,
+    "kernel": "rbf",
+    "gamma": "scale",
+    "degree": 3,
+    "svm_max_iter": 1000,
+    "svm_tolerance": 0.001
+  },
+  "timestamp": "2025-07-11T23:15:44.472089",
+  "experiment_name": "svm_iris"
+}

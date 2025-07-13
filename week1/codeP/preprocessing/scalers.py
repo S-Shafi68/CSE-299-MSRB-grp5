@@ -1,14 +1,12 @@
 """
 Data preprocessing scalers for feature normalization.
-
 This module provides scaling transformations to normalize features
 for machine learning algorithms.
 """
 
 import numpy as np
-from models.base_model import BaseTransformer
+from models.base import BaseTransformer  # Fixed import
 from logger import get_logger
-
 
 class StandardScaler(BaseTransformer):
     """
@@ -16,6 +14,7 @@ class StandardScaler(BaseTransformer):
     
     The standard score of a sample x is calculated as:
         z = (x - u) / s
+    
     where u is the mean of the training samples and s is the standard deviation.
     
     Parameters:
@@ -67,7 +66,7 @@ class StandardScaler(BaseTransformer):
             self.mean_ = np.mean(X, axis=0)
         else:
             self.mean_ = np.zeros(X.shape[1])
-            
+        
         if self.with_std:
             self.std_ = np.std(X, axis=0, ddof=0)
             # Avoid division by zero
@@ -75,6 +74,7 @@ class StandardScaler(BaseTransformer):
         else:
             self.std_ = np.ones(X.shape[1])
         
+        self.is_fitted = True
         self.logger.debug(f"Computed mean: {self.mean_}")
         self.logger.debug(f"Computed std: {self.std_}")
         
@@ -95,7 +95,7 @@ class StandardScaler(BaseTransformer):
             Transformed array.
         """
         # Check if fitted
-        if self.mean_ is None or self.std_ is None:
+        if not self.is_fitted:
             raise ValueError("StandardScaler must be fitted before transform")
         
         # Validate input
@@ -147,7 +147,7 @@ class StandardScaler(BaseTransformer):
             Transformed array.
         """
         # Check if fitted
-        if self.mean_ is None or self.std_ is None:
+        if not self.is_fitted:
             raise ValueError("StandardScaler must be fitted before inverse_transform")
         
         # Validate input
@@ -260,6 +260,7 @@ class MinMaxScaler(BaseTransformer):
         self.scale_ = (feature_max - feature_min) / self.data_range_
         self.min_ = feature_min - self.data_min_ * self.scale_
         
+        self.is_fitted = True
         self.logger.debug(f"Data min: {self.data_min_}")
         self.logger.debug(f"Data max: {self.data_max_}")
         self.logger.debug(f"Scale: {self.scale_}")
@@ -281,7 +282,7 @@ class MinMaxScaler(BaseTransformer):
             Transformed data.
         """
         # Check if fitted
-        if self.scale_ is None:
+        if not self.is_fitted:
             raise ValueError("MinMaxScaler must be fitted before transform")
         
         # Validate input
@@ -329,7 +330,7 @@ class MinMaxScaler(BaseTransformer):
             Transformed data.
         """
         # Check if fitted
-        if self.scale_ is None:
+        if not self.is_fitted:
             raise ValueError("MinMaxScaler must be fitted before inverse_transform")
         
         # Validate input
