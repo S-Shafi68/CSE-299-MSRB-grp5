@@ -1,0 +1,23 @@
+{
+  "model": "ridge",
+  "dataset": "boston",
+  "train_mse": 3.677342156855248,
+  "test_mse": 4.171101718018779,
+  "train_r2": 0.9105082503094452,
+  "test_r2": 0.9175157469623448,
+  "parameters": {
+    "dataset": "boston",
+    "model": "ridge",
+    "test_size": 0.2,
+    "random_state": 42,
+    "normalize": "false",
+    "cv": null,
+    "alpha": 1.0,
+    "output_dir": "RESULTS",
+    "verbose": true,
+    "scaler": "none",
+    "scaler_range": "0,1"
+  },
+  "timestamp": "2025-07-02T02:03:33.450279",
+  "experiment_name": "ridge_boston"
+}
