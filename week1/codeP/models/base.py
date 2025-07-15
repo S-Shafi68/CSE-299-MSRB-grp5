@@ -1,12 +1,13 @@
 """
 Base model interface/abstract classes for the ML library recreation project.
+
 Defines the common interface that all models should implement.
+Enhanced for Week 4 with clustering support.
 """
 
 from abc import ABC, abstractmethod
 import numpy as np
 import logging
-
 
 class BaseModel(ABC):
     """Abstract base class for all machine learning models."""
@@ -15,16 +16,16 @@ class BaseModel(ABC):
         """Initialize the base model."""
         self.is_fitted = False
         self.logger = logging.getLogger(self.__class__.__name__)
-        
+    
     @abstractmethod
-    def fit(self, X, y):
+    def fit(self, X, y=None):
         """
         Fit the model to training data.
         
         Args:
             X (array-like): Training features of shape (n_samples, n_features)
-            y (array-like): Training targets of shape (n_samples,)
-            
+            y (array-like, optional): Training targets of shape (n_samples,)
+        
         Returns:
             self: Returns self for method chaining
         """
@@ -37,7 +38,7 @@ class BaseModel(ABC):
         
         Args:
             X (array-like): Features of shape (n_samples, n_features)
-            
+        
         Returns:
             array: Predictions of shape (n_samples,)
         """
@@ -50,11 +51,11 @@ class BaseModel(ABC):
         Args:
             X (array-like): Input features
             y (array-like, optional): Target values
-            
+        
         Returns:
-            tuple: (X, y) as numpy arrays
+            tuple: (X, y) as numpy arrays or just X if y is None
         """
-        # FIRST: Handle tuple inputs before any operations
+        # Handle tuple inputs before any operations
         if isinstance(X, tuple):
             X = X[0] if len(X) == 1 else np.array(X)
         if isinstance(y, tuple) and y is not None:
@@ -64,7 +65,9 @@ class BaseModel(ABC):
         X = np.asarray(X)
         
         # Validate X
-        if X.ndim != 2:
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        elif X.ndim != 2:
             raise ValueError(f"X must be 2D, got {X.ndim}D array")
         
         if X.shape[0] == 0:
@@ -76,12 +79,11 @@ class BaseModel(ABC):
             # Validate y
             if y.ndim != 1:
                 raise ValueError(f"y must be 1D, got {y.ndim}D array")
-            
             if X.shape[0] != y.shape[0]:
                 raise ValueError(f"X and y must have same number of samples. "
                                f"Got X: {X.shape[0]}, y: {y.shape[0]}")
-            
             return X, y
+        
         return X
     
     def _check_fitted(self):
@@ -111,7 +113,7 @@ class BaseModel(ABC):
         
         Args:
             **params: Dictionary of parameter names and values
-            
+        
         Returns:
             self: Returns self for method chaining
         """
@@ -138,13 +140,12 @@ class BaseRegressor(BaseModel):
         Args:
             X (array-like): Features
             y (array-like): True targets
-            
+        
         Returns:
             float: R² score
         """
         self._check_fitted()
         X, y = self._validate_input(X, y)
-        
         y_pred = self.predict(X)
         
         # Calculate R² score
@@ -173,13 +174,12 @@ class BaseClassifier(BaseModel):
         Args:
             X (array-like): Features
             y (array-like): True labels
-            
+        
         Returns:
             float: Accuracy score
         """
         self._check_fitted()
         X, y = self._validate_input(X, y)
-        
         y_pred = self.predict(X)
         return np.mean(y == y_pred)
     
@@ -189,7 +189,7 @@ class BaseClassifier(BaseModel):
         
         Args:
             X (array-like): Features
-            
+        
         Returns:
             array: Class probabilities of shape (n_samples, n_classes)
         """
@@ -202,7 +202,7 @@ class BaseClassifier(BaseModel):
         
         Args:
             y (array-like): Labels
-            
+        
         Returns:
             array: Encoded labels
         """
@@ -223,13 +223,12 @@ class BaseClassifier(BaseModel):
         
         Args:
             y_encoded (array-like): Encoded labels
-            
+        
         Returns:
             array: Original labels
         """
         if self.classes_ is None:
             return y_encoded
-        
         return self.classes_[y_encoded]
 
 
@@ -242,6 +241,7 @@ class BaseClusterer(BaseModel):
         self.model_type = "clusterer"
         self.labels_ = None
         self.cluster_centers_ = None
+        self.n_clusters_ = None
     
     def fit(self, X, y=None):
         """
@@ -250,7 +250,7 @@ class BaseClusterer(BaseModel):
         Args:
             X (array-like): Features
             y: Ignored, present for API consistency
-            
+        
         Returns:
             self: Returns self for method chaining
         """
@@ -263,14 +263,13 @@ class BaseClusterer(BaseModel):
         
         Args:
             X (array-like): Features
-            
+        
         Returns:
             array: Cluster labels
         """
         # Default implementation - subclasses should override
         self._check_fitted()
-        X, _ = self._validate_input(X)
-        
+        X = self._validate_input(X)
         # For most clustering algorithms, this would assign to nearest cluster center
         raise NotImplementedError("Subclass must implement predict method")
     
@@ -281,12 +280,34 @@ class BaseClusterer(BaseModel):
         Args:
             X (array-like): Features
             y: Ignored, present for API consistency
-            
+        
         Returns:
             array: Cluster labels
         """
         self.fit(X, y)
         return self.labels_
+    
+    def score(self, X, y=None):
+        """
+        Calculate clustering score (silhouette score).
+        
+        Args:
+            X (array-like): Features
+            y: Ignored for clustering
+        
+        Returns:
+            float: Silhouette score
+        """
+        self._check_fitted()
+        X = self._validate_input(X)
+        
+        # Import here to avoid circular imports
+        try:
+            from utils.clustering_metrics import silhouette_score
+            return silhouette_score(X, self.labels_)
+        except ImportError:
+            self.logger.warning("Silhouette score not available - implement utils.clustering_metrics")
+            return 0.0
 
 
 class BaseTransformer(BaseModel):
@@ -296,6 +317,24 @@ class BaseTransformer(BaseModel):
         """Initialize the base transformer."""
         super().__init__()
         self.model_type = "transformer"
+        self.n_features_in_ = None
+        self.n_features_out_ = None
+    
+    def fit(self, X, y=None):
+        """
+        Fit transformer to data.
+        
+        Args:
+            X (array-like): Features to fit transformer
+            y: Target values (ignored by most transformers)
+        
+        Returns:
+            self: Returns self for method chaining
+        """
+        X = self._validate_input(X)
+        self.n_features_in_ = X.shape[1]
+        # Subclasses should override this method
+        return self
     
     def predict(self, X):
         """
@@ -304,7 +343,7 @@ class BaseTransformer(BaseModel):
         
         Args:
             X (array-like): Features to transform
-            
+        
         Returns:
             array: Transformed features
         """
@@ -317,7 +356,7 @@ class BaseTransformer(BaseModel):
         
         Args:
             X (array-like): Features to transform
-            
+        
         Returns:
             array: Transformed features
         """
@@ -330,7 +369,7 @@ class BaseTransformer(BaseModel):
         Args:
             X (array-like): Features
             y: Target values (ignored by most transformers)
-            
+        
         Returns:
             array: Transformed features
         """
@@ -343,12 +382,26 @@ class BaseTransformer(BaseModel):
         
         Args:
             X (array-like): Transformed features
-            
+        
         Returns:
             array: Original features
         """
         # Default implementation - not all transformers support inverse transform
         raise NotImplementedError("This transformer does not support inverse transform")
+    
+    def score(self, X, y=None):
+        """
+        Score method for transformers (usually explained variance for PCA).
+        
+        Args:
+            X (array-like): Features
+            y: Ignored for transformers
+        
+        Returns:
+            float: Transformer score
+        """
+        # Default implementation - subclasses should override
+        return 0.0
 
 
 # Utility functions for model validation
@@ -361,7 +414,7 @@ def check_array(array, accept_sparse=False, dtype=None, ensure_2d=True):
         accept_sparse (bool): Whether to accept sparse matrices
         dtype: Desired data type
         ensure_2d (bool): Whether to ensure 2D array
-        
+    
     Returns:
         array: Validated numpy array
     """
@@ -385,7 +438,7 @@ def check_X_y(X, y, accept_sparse=False, dtype=None):
         y: Target values
         accept_sparse (bool): Whether to accept sparse matrices
         dtype: Desired data type
-        
+    
     Returns:
         tuple: (X, y) as validated numpy arrays
     """
@@ -397,3 +450,26 @@ def check_X_y(X, y, accept_sparse=False, dtype=None):
                         f"Got X: {X.shape[0]}, y: {y.shape[0]}")
     
     return X, y
+
+
+def check_clustering_labels(labels):
+    """
+    Validate clustering labels.
+    
+    Args:
+        labels: Cluster labels
+    
+    Returns:
+        array: Validated labels
+    """
+    labels = np.asarray(labels)
+    
+    if labels.ndim != 1:
+        raise ValueError("Labels must be 1D")
+    
+    # Check for valid clustering (at least 2 clusters, no empty clusters)
+    unique_labels = np.unique(labels)
+    if len(unique_labels) < 2:
+        raise ValueError("Must have at least 2 clusters")
+    
+    return labels
