@@ -1,4 +1,5 @@
-# CSE-299-Sec5-MSRB-group5
+# Sci-kit learn recreation
+CSE299-sec5-Group-5
 Group Members-
 
 1. Salman Shafi-2211386042
