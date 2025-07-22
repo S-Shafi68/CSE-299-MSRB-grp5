@@ -1,0 +1,8 @@
+python main.py --dataset iris --model logistic_regression --scaler standard --verbose
+python main.py --dataset iris --model knn --k 5 --scaler standard
+python main.py --dataset wine --model knn --k 3 --distance_metric manhattan --scaler minmax
+python main.py --dataset iris --model knn --k 7 --weights distance --scaler standard --verbose
+python main.py --dataset digits --model knn --k 5 --distance_metric cosine --scaler standard
+python main.py --dataset iris --model svm --C 1.0 --kernel rbf --scaler standard
+python main.py --dataset wine --model svm --C 0.5 --kernel linear --scaler minmax
+

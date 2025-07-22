@@ -1,0 +1,43 @@
+{
+  "task_type": "classification",
+  "train_accuracy": 0.7666666666666667,
+  "test_accuracy": 0.7333333333333333,
+  "test_precision": 0.8084935897435898,
+  "test_recall": 0.7333333333333333,
+  "test_f1": 0.7690815230572012,
+  "confusion_matrix": [
+    [
+      10,
+      0,
+      0
+    ],
+    [
+      3,
+      1,
+      5
+    ],
+    [
+      0,
+      0,
+      11
+    ]
+  ],
+  "model": "logistic_regression",
+  "dataset": "iris",
+  "parameters": {
+    "dataset": "iris",
+    "model": "logistic_regression",
+    "test_size": 0.2,
+    "random_state": 42,
+    "normalize": "false",
+    "cv": null,
+    "alpha": 1.0,
+    "output_dir": "RESULTS",
+    "verbose": true,
+    "scaler": "standard",
+    "scaler_range": "0,1",
+    "task": null
+  },
+  "timestamp": "2025-07-11T12:08:28.460749",
+  "experiment_name": "logistic_regression_iris"
+}

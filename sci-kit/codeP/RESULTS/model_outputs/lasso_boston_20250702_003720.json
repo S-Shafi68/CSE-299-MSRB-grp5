@@ -1,0 +1,21 @@
+{
+  "model": "lasso",
+  "dataset": "boston",
+  "train_mse": 3.677124230621815,
+  "test_mse": 4.171952660761684,
+  "train_r2": 0.9105135537593558,
+  "test_r2": 0.9174989194234183,
+  "parameters": {
+    "dataset": "boston",
+    "model": "lasso",
+    "test_size": 0.2,
+    "random_state": 42,
+    "normalize": "false",
+    "cv": null,
+    "alpha": 1.0,
+    "output_dir": "RESULTS",
+    "verbose": true
+  },
+  "timestamp": "2025-07-02T00:37:20.879743",
+  "experiment_name": "lasso_boston"
+}
