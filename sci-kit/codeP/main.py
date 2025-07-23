@@ -266,9 +266,8 @@ def create_pipeline(args, final_estimator):
     if args.feature_selection == 'kbest':
         steps.append(('feature_selection', SelectKBest(k=args.k_features)))
     elif args.feature_selection == 'rfe':
-        # Use a simple estimator for RFE
-        from models.logistic_regression import LogisticRegression
-        rfe_estimator = LogisticRegression(random_state=args.random_state)
+        from models.decision_tree import DecisionTreeClassifier
+        rfe_estimator = DecisionTreeClassifier(random_state=args.random_state)
         steps.append(('feature_selection', RFE(estimator=rfe_estimator, n_features_to_select=args.k_features)))
     
     # Add final estimator
@@ -298,187 +297,6 @@ def apply_preprocessing(X_train, X_test, scaler_type, scaler_range="0,1"):
     
     logger.info(f"Preprocessing completed. Original shape: {X_train.shape}")
     return X_train_scaled, X_test_scaled
-
-def perform_cross_validation(model, X, y, args):
-    """Perform cross-validation on the model."""
-    from utils.validation import cross_validate, KFold, StratifiedKFold
-    
-    # Setup cross-validation
-    if args.stratified and determine_task_type(args.model, args.dataset) == 'classification':
-        cv = StratifiedKFold(n_splits=args.cv_folds, shuffle=True, random_state=args.random_state)
-        logger.info(f"Using Stratified {args.cv_folds}-Fold Cross-Validation")
-    else:
-        cv = KFold(n_splits=args.cv_folds, shuffle=True, random_state=args.random_state)
-        logger.info(f"Using {args.cv_folds}-Fold Cross-Validation")
-    
-    # Perform cross-validation
-    cv_results = cross_validate(model, X, y, cv=cv, scoring=args.scoring, return_train_score=True)
-    
-    # Display results
-    print("\n" + "="*50)
-    print("CROSS-VALIDATION RESULTS")
-    print("="*50)
-    print(f"Scoring: {args.scoring}")
-    print(f"CV Folds: {args.cv_folds}")
-    print(f"Test Score: {cv_results['test_score'].mean():.4f} (+/- {cv_results['test_score'].std() * 2:.4f})")
-    print(f"Train Score: {cv_results['train_score'].mean():.4f} (+/- {cv_results['train_score'].std() * 2:.4f})")
-    print(f"Fit Time: {cv_results['fit_time'].mean():.4f} (+/- {cv_results['fit_time'].std() * 2:.4f}) seconds")
-    print(f"Score Time: {cv_results['score_time'].mean():.4f} (+/- {cv_results['score_time'].std() * 2:.4f}) seconds")
-    
-    # Individual fold results
-    print("\nIndividual Fold Results:")
-    for i, (train_score, test_score) in enumerate(zip(cv_results['train_score'], cv_results['test_score'])):
-        print(f"Fold {i+1}: Train={train_score:.4f}, Test={test_score:.4f}")
-    
-    print("="*50)
-    
-    return cv_results
-
-def perform_grid_search(model, X, y, args):
-    """Perform grid search hyperparameter tuning."""
-    from utils.grid_search import GridSearchCV
-    
-    # Define parameter grids for different models
-    param_grids = {
-        'decision_tree': {
-            'max_depth': [3, 5, 7, 10, None],
-            'min_samples_split': [2, 5, 10],
-            'min_samples_leaf': [1, 2, 4],
-            'criterion': ['gini', 'entropy']
-        },
-        'random_forest': {
-            'n_estimators': [50, 100, 200],
-            'max_depth': [3, 5, 7, 10, None],
-            'min_samples_split': [2, 5, 10],
-            'min_samples_leaf': [1, 2, 4],
-            'max_features': ['sqrt', 'log2']
-        },
-        'svm': {
-            'C': [0.1, 1, 10, 100],
-            'kernel': ['linear', 'rbf'],
-            'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1]
-        },
-        'knn': {
-            'k': [3, 5, 7, 9, 11],
-            'distance_metric': ['euclidean', 'manhattan'],
-            'weights': ['uniform', 'distance']
-        },
-        'pca': {
-            'n_components': [0.8, 0.9, 0.95, 0.99],
-            'whiten': [True, False]
-        }
-    }
-    
-    if args.model not in param_grids:
-        logger.warning(f"No parameter grid defined for {args.model}. Using default parameters.")
-        return None
-    
-    # Setup grid search
-    grid_search = GridSearchCV(
-        estimator=model,
-        param_grid=param_grids[args.model],
-        cv=args.cv_folds,
-        scoring=args.scoring,
-        refit=True
-    )
-    
-    logger.info(f"Starting Grid Search for {args.model} with {len(param_grids[args.model])} parameters...")
-    
-    # Perform grid search
-    grid_search.fit(X, y)
-    
-    # Display results
-    print("\n" + "="*50)
-    print("GRID SEARCH RESULTS")
-    print("="*50)
-    print(f"Best Parameters: {grid_search.best_params_}")
-    print(f"Best Score: {grid_search.best_score_:.4f}")
-    print(f"Model: {args.model}")
-    print(f"Scoring: {args.scoring}")
-    
-    # Show top 5 results
-    print("\nTop 5 Parameter Combinations:")
-    results = grid_search.cv_results_
-    sorted_indices = sorted(range(len(results['mean_test_score'])), 
-                          key=lambda i: results['mean_test_score'][i], reverse=True)
-    
-    for i, idx in enumerate(sorted_indices[:5]):
-        print(f"{i+1}. Score: {results['mean_test_score'][idx]:.4f} "
-              f"(+/- {results['std_test_score'][idx] * 2:.4f}) "
-              f"Params: {results['params'][idx]}")
-    
-    print("="*50)
-    
-    return grid_search
-
-def perform_randomized_search(model, X, y, args):
-    """Perform randomized search hyperparameter tuning."""
-    from utils.grid_search import RandomizedSearchCV
-    
-    # Define parameter distributions for different models
-    param_distributions = {
-        'decision_tree': {
-            'max_depth': [3, 5, 7, 10, None],
-            'min_samples_split': [2, 5, 10, 15],
-            'min_samples_leaf': [1, 2, 4, 6],
-            'criterion': ['gini', 'entropy']
-        },
-        'random_forest': {
-            'n_estimators': [50, 100, 150, 200],
-            'max_depth': [3, 5, 7, 10, None],
-            'min_samples_split': [2, 5, 10, 15],
-            'min_samples_leaf': [1, 2, 4, 6],
-            'max_features': ['sqrt', 'log2']
-        },
-        'svm': {
-            'C': [0.1, 1, 10, 100],
-            'kernel': ['linear', 'rbf', 'poly'],
-            'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1]
-        },
-        'knn': {
-            'k': [3, 5, 7, 9, 11, 13],
-            'distance_metric': ['euclidean', 'manhattan', 'cosine'],
-            'weights': ['uniform', 'distance']
-        },
-        'pca': {
-            'n_components': [0.7, 0.8, 0.9, 0.95, 0.99],
-            'whiten': [True, False]
-        }
-    }
-    
-    if args.model not in param_distributions:
-        logger.warning(f"No parameter distribution defined for {args.model}. Using default parameters.")
-        return None
-    
-    # Setup randomized search
-    random_search = RandomizedSearchCV(
-        estimator=model,
-        param_distributions=param_distributions[args.model],
-        n_iter=args.n_iter_search,
-        cv=args.cv_folds,
-        scoring=args.scoring,
-        refit=True,
-        random_state=args.random_state
-    )
-    
-    logger.info(f"Starting Randomized Search for {args.model} with {args.n_iter_search} iterations...")
-    
-    # Perform randomized search
-    random_search.fit(X, y)
-    
-    # Display results
-    print("\n" + "="*50)
-    print("RANDOMIZED SEARCH RESULTS")
-    print("="*50)
-    print(f"Best Parameters: {random_search.best_params_}")
-    print(f"Best Score: {random_search.best_score_:.4f}")
-    print(f"Model: {args.model}")
-    print(f"Scoring: {args.scoring}")
-    print(f"Iterations: {args.n_iter_search}")
-    
-    print("="*50)
-    
-    return random_search
 
 def calculate_and_display_metrics(model_name, dataset_name, y_train, y_test, y_pred_train, y_pred_test, model=None, X_test=None):
     """Calculate and display appropriate metrics based on task type."""
@@ -674,238 +492,175 @@ def main():
     logger.info(f"Dataset: {args.dataset}, Model: {args.model}")
     
     try:
-        # Load pre-trained model if specified
-        if args.load_model:
-            from utils.model_persistence import ModelPersistence
-            model, metadata = ModelPersistence.load_model(args.load_model)
-            logger.info(f"Loaded pre-trained model from {args.load_model}")
-            logger.info(f"Model metadata: {metadata}")
-            
-            # Still need to load data for evaluation
-            from utils.data_loader import DataLoader
-            data_loader = DataLoader()
+        # Load data
+        logger.info("Loading data...")
+        from utils.data_loader import DataLoader
+        data_loader = DataLoader()
+        
+        # For clustering, we might want to use the full dataset
+        task_type = determine_task_type(args.model, args.dataset)
+        
+        if task_type == 'clustering':
+            # For clustering, use full dataset
             X_train, X_test, y_train, y_test = data_loader.load_dataset(
                 dataset_name=args.dataset,
                 test_size=args.test_size,
                 random_state=args.random_state,
                 normalize=args.normalize.lower() == 'true'
             )
-            
-            # Apply same preprocessing
-            X_train, X_test = apply_preprocessing(X_train, X_test, args.scaler, args.scaler_range)
-            
-            # Make predictions with loaded model
-            if determine_task_type(args.model, args.dataset) == 'clustering':
-                # For clustering, we need to refit on the data
-                model.fit(X_train)
-                y_pred_train = model.labels_
-                y_pred_test = model.labels_
-            else:
-                y_pred_train = model.predict(X_train)
-                y_pred_test = model.predict(X_test)
-        
+            # Combine train and test for clustering
+            X_full = np.vstack([X_train, X_test])
+            y_full = np.hstack([y_train, y_test]) if y_train is not None else None
+            X_train, X_test = X_full, X_full  # Use full dataset for clustering
+            y_train, y_test = y_full, y_full
         else:
-            # Load data
-            logger.info("Loading data...")
-            from utils.data_loader import DataLoader
-            data_loader = DataLoader()
-            
-            # For clustering, we might want to use the full dataset
-            task_type = determine_task_type(args.model, args.dataset)
-            
-            if task_type == 'clustering':
-                # For clustering, use full dataset
-                X_train, X_test, y_train, y_test = data_loader.load_dataset(
-                    dataset_name=args.dataset,
-                    test_size=args.test_size,
-                    random_state=args.random_state,
-                    normalize=args.normalize.lower() == 'true'
-                )
-                # Combine train and test for clustering
-                X_full = np.vstack([X_train, X_test])
-                y_full = np.hstack([y_train, y_test]) if y_train is not None else None
-                X_train, X_test = X_full, X_full  # Use full dataset for clustering
-                y_train, y_test = y_full, y_full
-            else:
-                # For supervised learning, use train/test split
-                X_train, X_test, y_train, y_test = data_loader.load_dataset(
-                    dataset_name=args.dataset,
-                    test_size=args.test_size,
-                    random_state=args.random_state,
-                    normalize=args.normalize.lower() == 'true'
-                )
-            
-            # Initialize model parameters
-            logger.info("Initializing model...")
-            model_kwargs = {}
-            
-            if args.model in ['ridge', 'lasso']:
-                model_kwargs['alpha'] = args.alpha
-            elif args.model == 'knn':
-                model_kwargs['k'] = args.k
-                model_kwargs['distance_metric'] = args.distance_metric
-                model_kwargs['weights'] = args.weights
-                logger.info(f"KNN parameters: k={args.k}, distance_metric={args.distance_metric}, weights={args.weights}")
-            elif args.model == 'svm':
-                model_kwargs['C'] = args.C
-                model_kwargs['kernel'] = args.kernel
-                if args.gamma != 'scale':
-                    try:
-                        model_kwargs['gamma'] = float(args.gamma)
-                    except ValueError:
-                        model_kwargs['gamma'] = args.gamma
-                else:
+            # For supervised learning, use train/test split
+            X_train, X_test, y_train, y_test = data_loader.load_dataset(
+                dataset_name=args.dataset,
+                test_size=args.test_size,
+                random_state=args.random_state,
+                normalize=args.normalize.lower() == 'true'
+            )
+        
+        # Initialize model parameters
+        logger.info("Initializing model...")
+        model_kwargs = {}
+        
+        if args.model in ['ridge', 'lasso']:
+            model_kwargs['alpha'] = args.alpha
+        elif args.model == 'knn':
+            model_kwargs['k'] = args.k
+            model_kwargs['distance_metric'] = args.distance_metric
+            model_kwargs['weights'] = args.weights
+            logger.info(f"KNN parameters: k={args.k}, distance_metric={args.distance_metric}, weights={args.weights}")
+        elif args.model == 'svm':
+            model_kwargs['C'] = args.C
+            model_kwargs['kernel'] = args.kernel
+            if args.gamma != 'scale':
+                try:
+                    model_kwargs['gamma'] = float(args.gamma)
+                except ValueError:
                     model_kwargs['gamma'] = args.gamma
-                model_kwargs['degree'] = args.degree
-                model_kwargs['max_iter'] = args.svm_max_iter
-                model_kwargs['tolerance'] = args.svm_tolerance
-                logger.info(f"SVM parameters: C={args.C}, kernel={args.kernel}, gamma={args.gamma}, max_iter={args.svm_max_iter}")
-            elif args.model == 'kmeans':
-                model_kwargs['n_clusters'] = args.n_clusters
-                model_kwargs['init'] = args.init
-                model_kwargs['max_iter'] = args.max_iter
-                model_kwargs['tolerance'] = args.tolerance
-                model_kwargs['random_state'] = args.random_state
-                logger.info(f"K-Means parameters: n_clusters={args.n_clusters}, init={args.init}, max_iter={args.max_iter}")
-            elif args.model == 'hierarchical':
-                model_kwargs['n_clusters'] = args.n_clusters
-                model_kwargs['linkage'] = args.linkage
-                if args.distance_threshold is not None:
-                    model_kwargs['distance_threshold'] = args.distance_threshold
-                logger.info(f"Hierarchical parameters: n_clusters={args.n_clusters}, linkage={args.linkage}")
-            elif args.model == 'dbscan':
-                model_kwargs['eps'] = args.eps
-                model_kwargs['min_samples'] = args.min_samples
-                model_kwargs['metric'] = args.metric
-                logger.info(f"DBSCAN parameters: eps={args.eps}, min_samples={args.min_samples}, metric={args.metric}")
-            elif args.model == 'decision_tree':
-                model_kwargs['max_depth'] = args.max_depth
-                model_kwargs['min_samples_split'] = args.min_samples_split
-                model_kwargs['min_samples_leaf'] = args.min_samples_leaf
-                model_kwargs['criterion'] = args.criterion
-                model_kwargs['random_state'] = args.random_state
-                logger.info(f"Decision Tree parameters: max_depth={args.max_depth}, criterion={args.criterion}")
-            elif args.model == 'random_forest':
-                model_kwargs['n_estimators'] = args.n_estimators
-                model_kwargs['max_depth'] = args.max_depth
-                model_kwargs['min_samples_split'] = args.min_samples_split
-                model_kwargs['min_samples_leaf'] = args.min_samples_leaf
-                model_kwargs['max_features'] = args.max_features
-                model_kwargs['bootstrap'] = args.bootstrap.lower() == 'true'
-                model_kwargs['random_state'] = args.random_state
-                logger.info(f"Random Forest parameters: n_estimators={args.n_estimators}, max_depth={args.max_depth}")
-            elif args.model == 'pca':
-                pca_components = args.pca_components if args.pca_components > 1 else args.pca_components
-                model_kwargs['n_components'] = pca_components
-                model_kwargs['whiten'] = args.whiten
-                model_kwargs['random_state'] = args.random_state
-                logger.info(f"PCA parameters: n_components={pca_components}, whiten={args.whiten}")
-            
-            # Create model instance
-            model = get_model(args.model, **model_kwargs)
-            
-            # Use pipeline if requested
-            if args.pipeline and task_type not in ['clustering', 'dimensionality_reduction']:
-                model = create_pipeline(args, model)
-                logger.info("Using pipeline for preprocessing and modeling")
-            elif not args.pipeline:
-                # Apply preprocessing manually
-                X_train, X_test = apply_preprocessing(X_train, X_test, args.scaler, args.scaler_range)
-                logger.info(f"Training set shape: {X_train.shape}, Test set shape: {X_test.shape}")
-                
-                # Apply PCA if requested and not using pipeline
-                if args.pca and args.model != 'pca':
-                    from models.pca import PCA
-                    pca_transformer = PCA(n_components=args.pca_components, whiten=args.whiten, random_state=args.random_state)
-                    X_train = pca_transformer.fit_transform(X_train)
-                    X_test = pca_transformer.transform(X_test)
-                    logger.info(f"Applied PCA: {X_train.shape[1]} components explaining {np.sum(pca_transformer.explained_variance_ratio_):.4f} variance")
-                
-                # Apply feature selection if requested and not using pipeline
-                if args.feature_selection != 'none' and args.model != 'pca':
-                    if args.feature_selection == 'kbest':
-                        from preprocessing.feature_selection import SelectKBest
-                        selector = SelectKBest(k=args.k_features)
-                        X_train = selector.fit_transform(X_train, y_train)
-                        X_test = selector.transform(X_test)
-                        logger.info(f"Applied SelectKBest: selected {args.k_features} features")
-                    elif args.feature_selection == 'rfe':
-                        from preprocessing.feature_selection import RFE
-                        from models.logistic_regression import LogisticRegression
-                        rfe_estimator = LogisticRegression(random_state=args.random_state)
-                        selector = RFE(estimator=rfe_estimator, n_features_to_select=args.k_features)
-                        X_train = selector.fit_transform(X_train, y_train)
-                        X_test = selector.transform(X_test)
-                        logger.info(f"Applied RFE: selected {args.k_features} features")
-            
-            # Perform validation if requested
-            if args.cross_validate:
-                X_combined = np.vstack([X_train, X_test])
-                y_combined = np.hstack([y_train, y_test]) if y_train is not None else None
-                
-                if task_type not in ['clustering', 'dimensionality_reduction']:
-                    cv_results = perform_cross_validation(model, X_combined, y_combined, args)
-                else:
-                    logger.warning("Cross-validation not applicable for clustering/dimensionality reduction tasks")
-            
-            # Perform hyperparameter tuning if requested
-            if args.grid_search:
-                X_combined = np.vstack([X_train, X_test])
-                y_combined = np.hstack([y_train, y_test]) if y_train is not None else None
-                
-                if task_type not in ['clustering', 'dimensionality_reduction']:
-                    grid_search = perform_grid_search(model, X_combined, y_combined, args)
-                    if grid_search:
-                        model = grid_search.best_estimator_
-                else:
-                    logger.warning("Grid search not applicable for clustering/dimensionality reduction tasks")
-            
-            # Perform randomized search if requested
-            if args.randomized_search:
-                X_combined = np.vstack([X_train, X_test])
-                y_combined = np.hstack([y_train, y_test]) if y_train is not None else None
-                
-                if task_type not in ['clustering', 'dimensionality_reduction']:
-                    random_search = perform_randomized_search(model, X_combined, y_combined, args)
-                    if random_search:
-                        model = random_search.best_estimator_
-                else:
-                    logger.warning("Randomized search not applicable for clustering/dimensionality reduction tasks")
-            
-            # Train model
-            logger.info("Training model...")
-            if task_type == 'clustering':
-                model.fit(X_train)  # Clustering doesn't use y
-                y_pred_train = model.labels_
-                y_pred_test = model.labels_  # Same as train for clustering
-            elif task_type == 'dimensionality_reduction':
-                model.fit(X_train)  # Fit the transformer
-                X_transformed_train = model.transform(X_train)
-                X_transformed_test = model.transform(X_test)
-                y_pred_train = X_transformed_train  # For display purposes
-                y_pred_test = X_transformed_test
             else:
-                model.fit(X_train, y_train)
-                # Make predictions
-                logger.info("Making predictions...")
-                y_pred_train = model.predict(X_train)
-                y_pred_test = model.predict(X_test)
+                model_kwargs['gamma'] = args.gamma
+            model_kwargs['degree'] = args.degree
+            model_kwargs['max_iter'] = args.svm_max_iter
+            model_kwargs['tolerance'] = args.svm_tolerance
+            logger.info(f"SVM parameters: C={args.C}, kernel={args.kernel}, gamma={args.gamma}, max_iter={args.svm_max_iter}")
+        elif args.model == 'kmeans':
+            model_kwargs['n_clusters'] = args.n_clusters
+            model_kwargs['init'] = args.init
+            model_kwargs['max_iter'] = args.max_iter
+            model_kwargs['tolerance'] = args.tolerance
+            model_kwargs['random_state'] = args.random_state
+            logger.info(f"K-Means parameters: n_clusters={args.n_clusters}, init={args.init}, max_iter={args.max_iter}")
+        elif args.model == 'hierarchical':
+            model_kwargs['n_clusters'] = args.n_clusters
+            model_kwargs['linkage'] = args.linkage
+            if args.distance_threshold is not None:
+                model_kwargs['distance_threshold'] = args.distance_threshold
+            logger.info(f"Hierarchical parameters: n_clusters={args.n_clusters}, linkage={args.linkage}")
+        elif args.model == 'dbscan':
+            model_kwargs['eps'] = args.eps
+            model_kwargs['min_samples'] = args.min_samples
+            model_kwargs['metric'] = args.metric
+            logger.info(f"DBSCAN parameters: eps={args.eps}, min_samples={args.min_samples}, metric={args.metric}")
+        elif args.model == 'decision_tree':
+            model_kwargs['max_depth'] = args.max_depth
+            model_kwargs['min_samples_split'] = args.min_samples_split
+            model_kwargs['min_samples_leaf'] = args.min_samples_leaf
+            model_kwargs['criterion'] = args.criterion
+            model_kwargs['random_state'] = args.random_state
+            logger.info(f"Decision Tree parameters: max_depth={args.max_depth}, criterion={args.criterion}")
+        elif args.model == 'random_forest':
+            model_kwargs['n_estimators'] = args.n_estimators
+            model_kwargs['max_depth'] = args.max_depth
+            model_kwargs['min_samples_split'] = args.min_samples_split
+            model_kwargs['min_samples_leaf'] = args.min_samples_leaf
+            model_kwargs['max_features'] = args.max_features
+            model_kwargs['bootstrap'] = args.bootstrap.lower() == 'true'
+            model_kwargs['random_state'] = args.random_state
+            logger.info(f"Random Forest parameters: n_estimators={args.n_estimators}, max_depth={args.max_depth}")
+        elif args.model == 'pca':
+            pca_components = args.pca_components if args.pca_components > 1 else args.pca_components
+            model_kwargs['n_components'] = pca_components
+            model_kwargs['whiten'] = args.whiten
+            model_kwargs['random_state'] = args.random_state
+            logger.info(f"PCA parameters: n_components={pca_components}, whiten={args.whiten}")
+        
+        # Create model instance
+        model = get_model(args.model, **model_kwargs)
+        
+        # Use pipeline if requested
+        if args.pipeline and task_type not in ['clustering', 'dimensionality_reduction']:
+            model = create_pipeline(args, model)
+            logger.info("Using pipeline for preprocessing and modeling")
+        elif not args.pipeline:
+            # Apply preprocessing manually
+            X_train, X_test = apply_preprocessing(X_train, X_test, args.scaler, args.scaler_range)
+            logger.info(f"Training set shape: {X_train.shape}, Test set shape: {X_test.shape}")
             
-            # Save model if requested
-            if args.save_model:
+            # Apply PCA if requested and not using pipeline
+            if args.pca and args.model != 'pca':
+                from models.pca import PCA
+                pca_transformer = PCA(n_components=args.pca_components, whiten=args.whiten, random_state=args.random_state)
+                X_train = pca_transformer.fit_transform(X_train)
+                X_test = pca_transformer.transform(X_test)
+                logger.info(f"Applied PCA: {X_train.shape[1]} components explaining {np.sum(pca_transformer.explained_variance_ratio_):.4f} variance")
+            
+            # Apply feature selection if requested and not using pipeline
+            if args.feature_selection != 'none' and args.model != 'pca':
+                if args.feature_selection == 'kbest':
+                    from preprocessing.feature_selection import SelectKBest
+                    selector = SelectKBest(k=args.k_features)
+                    X_train = selector.fit_transform(X_train, y_train)
+                    X_test = selector.transform(X_test)
+                    logger.info(f"Applied SelectKBest: selected {args.k_features} features")
+                elif args.feature_selection == 'rfe':
+                    from preprocessing.feature_selection import RFE
+                    from models.decision_tree import DecisionTreeClassifier
+                    rfe_estimator = DecisionTreeClassifier(random_state=args.random_state)
+                    selector = RFE(estimator=rfe_estimator, n_features_to_select=args.k_features)
+                    X_train = selector.fit_transform(X_train, y_train)
+                    X_test = selector.transform(X_test)
+                    logger.info(f"Applied RFE: selected {args.k_features} features")
+        
+        # Train model
+        logger.info("Training model...")
+        if task_type == 'clustering':
+            model.fit(X_train)  # Clustering doesn't use y
+            y_pred_train = model.labels_
+            y_pred_test = model.labels_  # Same as train for clustering
+        elif task_type == 'dimensionality_reduction':
+            model.fit(X_train)  # Fit the transformer
+            X_transformed_train = model.transform(X_train)
+            X_transformed_test = model.transform(X_test)
+            y_pred_train = X_transformed_train  # For display purposes
+            y_pred_test = X_transformed_test
+        else:
+            model.fit(X_train, y_train)
+            # Make predictions
+            logger.info("Making predictions...")
+            y_pred_train = model.predict(X_train)
+            y_pred_test = model.predict(X_test)
+        
+        # Save model if requested
+        if args.save_model:
+            try:
                 from utils.model_persistence import ModelPersistence
                 metadata = {
                     'model_type': type(model).__name__,
                     'dataset': args.dataset,
                     'task_type': task_type,
-                    'parameters': vars(args),
-                    'training_date': str(logger.info("Model training completed"))
+                    'parameters': vars(args)
                 }
                 
                 if ModelPersistence.save_model(model, args.save_model, metadata):
                     logger.info(f"Model saved to {args.save_model}")
                 else:
                     logger.error(f"Failed to save model to {args.save_model}")
+            except Exception as e:
+                logger.warning(f"Model persistence not available: {e}")
         
         # Calculate and display metrics
         results_data = calculate_and_display_metrics(
