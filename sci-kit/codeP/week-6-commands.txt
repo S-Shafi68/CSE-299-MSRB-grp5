@@ -1,0 +1,36 @@
+PCA dimensionality reduction
+# Test PCA with different variance ratios
+python main.py --dataset digits --model pca --pca_components 0.95 --scaler standard --verbose
+python main.py --dataset wine --model pca --pca_components 0.8 --whiten --scaler minmax
+python main.py --dataset iris --model pca --pca_components 2 --scaler standard
+
+# PCA with grid search
+python main.py --dataset digits --model pca --grid_search --scaler standard
+
+
+Feature selection test
+# SelectKBest feature selection
+python main.py --dataset wine --model logistic_regression --feature_selection kbest --k_features 5 --scaler standard
+python main.py --dataset digits --model decision_tree --feature_selection kbest --k_features 20 --scaler standard
+
+# RFE feature selection
+python main.py --dataset iris --model random_forest --feature_selection rfe --k_features 3 --scaler standard
+python main.py --dataset wine --model svm --feature_selection rfe --k_features 8 --scaler standard
+
+# Pipeline with scaling + PCA + classification
+python main.py --dataset digits --model random_forest --pipeline --pca --pca_components 0.9 --scaler standard
+python main.py --dataset wine --model logistic_regression --pipeline --feature_selection kbest --k_features 7 --scaler minmax
+
+# Pipeline with multiple preprocessing steps
+python main.py --dataset iris --model svm --pipeline --pca --feature_selection rfe --k_features 3 --scaler standard
+Model Persistence
+# Save models
+python main.py --dataset iris --model random_forest --save_model saved_models/iris_rf.pkl --scaler standard --n_estimators 50
+python main.py --dataset wine --model logistic_regression --save_model saved_models/wine_lr.pkl --feature_selection kbest --k_features 8
+python main.py --dataset digits --model pca --save_model saved_models/digits_pca.pkl --pca_components 0.95 --scaler standard
+
+# Load and test saved models
+python main.py --dataset iris --model random_forest --load_model saved_models/iris_rf.pkl
+python main.py --dataset wine --model logistic_regression --load_model saved_models/wine_lr.pkl
+
+
